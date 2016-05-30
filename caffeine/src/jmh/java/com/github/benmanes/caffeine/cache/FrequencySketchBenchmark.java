@@ -49,13 +49,13 @@ public class FrequencySketchBenchmark {
     NumberGenerator generator = new ScrambledZipfianGenerator(ITEMS);
     for (int i = 0; i < SIZE; i++) {
       ints[i] = generator.nextValue().intValue();
-      sketch.increment(i);
+      sketch.increment(i, 1);
     }
   }
 
   @Benchmark
   public void increment() {
-    sketch.increment(ints[index++ & MASK]);
+    sketch.increment(ints[index++ & MASK], 1);
   }
 
   @Benchmark

@@ -142,7 +142,7 @@ final class FrequencySketch<E> {
    *
    * @param e the element to add
    */
-  public void increment(@Nonnull E e) {
+  public void increment(@Nonnull E e, int count) {
     if (isNotInitialized()) {
       return;
     }
@@ -156,13 +156,16 @@ final class FrequencySketch<E> {
     int index2 = indexOf(hash, 2);
     int index3 = indexOf(hash, 3);
 
-    boolean added = incrementAt(index0, start);
-    added |= incrementAt(index1, start + 1);
-    added |= incrementAt(index2, start + 2);
-    added |= incrementAt(index3, start + 3);
+    boolean added = incrementAt(index0, start, count);
+    added |= incrementAt(index1, start + 1, count);
+    added |= incrementAt(index2, start + 2, count);
+    added |= incrementAt(index3, start + 3, count);
 
-    if (added && (++size == sampleSize)) {
-      reset();
+    if (added) {
+      size += count;
+      if (size == sampleSize) {
+        reset();
+      }
     }
   }
 
@@ -173,11 +176,14 @@ final class FrequencySketch<E> {
    * @param j the counter to increment
    * @return if incremented
    */
-  boolean incrementAt(int i, int j) {
+  boolean incrementAt(int i, int j, int count) {
     int offset = j << 2;
     long mask = (0xfL << offset);
-    if ((table[i] & mask) != mask) {
-      table[i] += (1L << offset);
+    long counter = (table[i] & mask);
+    if (counter != mask) {
+      long current = (counter >>> offset);
+      long increment = Math.min(current + count, 15L) - current;
+      table[i] += (increment << offset);
       return true;
     }
     return false;

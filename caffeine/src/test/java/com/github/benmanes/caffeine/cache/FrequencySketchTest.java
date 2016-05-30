@@ -62,23 +62,18 @@ public final class FrequencySketchTest {
   }
 
   @Test(dataProvider = "sketch")
-  public void increment_once(FrequencySketch<Integer> sketch) {
-    sketch.increment(item);
-    assertThat(sketch.frequency(item), is(1));
-  }
-
-  @Test(dataProvider = "sketch")
-  public void increment_max(FrequencySketch<Integer> sketch) {
+  public void increment(FrequencySketch<Integer> sketch) {
     for (int i = 0; i < 20; i++) {
-      sketch.increment(item);
+      sketch.increment(item, 1);
+      int count = Math.min(i + 1, 15);
+      assertThat(sketch.frequency(item), is(count));
     }
-    assertThat(sketch.frequency(item), is(15));
   }
 
   @Test(dataProvider = "sketch")
   public void increment_distinct(FrequencySketch<Integer> sketch) {
-    sketch.increment(item);
-    sketch.increment(item + 1);
+    sketch.increment(item, 1);
+    sketch.increment(item + 1, 1);
     assertThat(sketch.frequency(item), is(1));
     assertThat(sketch.frequency(item + 1), is(1));
     assertThat(sketch.frequency(item + 2), is(0));
@@ -91,7 +86,7 @@ public final class FrequencySketchTest {
     sketch.ensureCapacity(64);
 
     for (int i = 1; i < 20 * sketch.table.length; i++) {
-      sketch.increment(i);
+      sketch.increment(i, 1);
       if (sketch.size != i) {
         reset = true;
         break;
@@ -105,11 +100,11 @@ public final class FrequencySketchTest {
   public void heavyHitters() {
     FrequencySketch<Double> sketch = makeSketch(512);
     for (int i = 100; i < 100_000; i++) {
-      sketch.increment((double) i);
+      sketch.increment((double) i, 1);
     }
     for (int i = 0; i < 10; i += 2) {
       for (int j = 0; j < i; j++) {
-        sketch.increment((double) i);
+        sketch.increment((double) i, 1);
       }
     }
 

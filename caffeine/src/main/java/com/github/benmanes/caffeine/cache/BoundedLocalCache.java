@@ -67,6 +67,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import com.github.benmanes.caffeine.base.UnsafeAccess;
 import com.github.benmanes.caffeine.cache.LinkedDeque.PeekingIterator;
 import com.github.benmanes.caffeine.cache.References.InternalReference;
+import com.github.benmanes.caffeine.cache.RunLengthEncoder.RunLengthConsumer;
 import com.github.benmanes.caffeine.cache.stats.StatsCounter;
 
 /**
@@ -187,7 +188,7 @@ abstract class BoundedLocalCache<K, V> extends BLCHeader.DrainStatusRef<K, V>
     readBuffer = evicts() || collectKeys() || collectValues() || expiresAfterAccess()
         ? new BoundedBuffer<>()
         : Buffer.disabled();
-    accessPolicy = (evicts() || expiresAfterAccess()) ? this::onAccess : e -> {};
+    accessPolicy = (evicts() || expiresAfterAccess()) ? e -> onAccess(e, 1) : e -> {};
 
     if (evicts()) {
       setMaximum(builder.getMaximum());
@@ -1047,23 +1048,29 @@ abstract class BoundedLocalCache<K, V> extends BLCHeader.DrainStatusRef<K, V>
     }
   }
 
+  RunLengthEncoder<Node<K, V>> rle = new RunLengthEncoder<>(BoundedBuffer.BUFFER_SIZE);
+  RunLengthConsumer<Node<K, V>> rleAccessPolicy = this::onAccess;
+  Consumer<Node<K, V>> runLengthEncoder = rle::add;
+
   /** Drains the read buffer. */
   @GuardedBy("evictionLock")
   void drainReadBuffer() {
     if (!skipReadBuffer()) {
-      readBuffer.drainTo(accessPolicy);
+      //readBuffer.drainTo(accessPolicy);
+      readBuffer.drainTo(runLengthEncoder);
+      rle.drainTo(rleAccessPolicy);
     }
   }
 
   /** Updates the node's location in the page replacement policy. */
   @GuardedBy("evictionLock")
-  void onAccess(Node<K, V> node) {
+  void onAccess(Node<K, V> node, int count) {
     if (evicts()) {
       K key = node.getKey();
       if (key == null) {
         return;
       }
-      frequencySketch().increment(key);
+      frequencySketch().increment(key, count);
       if (node.inEden()) {
         reorder(accessOrderEdenDeque(), node);
       } else if (node.inMainProbation()) {
@@ -1185,7 +1192,7 @@ abstract class BoundedLocalCache<K, V> extends BLCHeader.DrainStatusRef<K, V>
 
         K key = node.getKey();
         if (key != null) {
-          frequencySketch().increment(key);
+          frequencySketch().increment(key, 1);
         }
       }
 
@@ -1267,7 +1274,7 @@ abstract class BoundedLocalCache<K, V> extends BLCHeader.DrainStatusRef<K, V>
         node.setPolicyWeight(node.getPolicyWeight() + weightDifference);
       }
       if (evicts() || expiresAfterAccess()) {
-        onAccess(node);
+        onAccess(node, 1);
       }
       if (expiresAfterWrite()) {
         reorder(writeOrderDeque(), node);
